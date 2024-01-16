@@ -7,16 +7,20 @@
 #include <time.h>
 #include <thread>
 
+/**
+ * When usepub/sub pattern, the topic and data should always be seperated
+ * to make sure the subscription filter only matches topic
+*/
 #define ZMQ_PUB_ENDPOINT  ("inproc://weather")
 #define CITY1_ZIP   10001
 #define CITY2_ZIP   10002
 
 void server(void *ctx)
 {
-    char buffer [20];
-    void *pub = zmq_socket (ctx, ZMQ_PUB);
     int count1 = 0;
     int count2 = 0;
+    char buffer [20];
+    void *pub = zmq_socket (ctx, ZMQ_PUB);
     int rc = zmq_bind (pub, ZMQ_PUB_ENDPOINT);
     assert (rc == 0);
 
@@ -28,20 +32,16 @@ void server(void *ctx)
         temperature = rand() % 215 - 80;
         humidity = rand() % 50 + 10;
 
-        sprintf(buffer,  "%05d %d %d", zipcode, temperature, humidity);
-        rc = zmq_send(pub, buffer, strlen(buffer) + 1, 0);
-        if( rc == -1 )
-        {
-            printf("zmq_send failed: %s\n", strerror(errno));
-        }
+        sprintf(buffer,  "%05d ", zipcode);
+        rc = zmq_send(pub, buffer, strlen(buffer), ZMQ_SNDMORE);
+        sprintf(buffer,  "%d %d", temperature, humidity);
+        zmq_send(pub, buffer, strlen(buffer) + 1, 0);
         if(zipcode == CITY1_ZIP)
         {
-            printf("server sent: %s\n", buffer);
             ++count1;
         }
         if(zipcode == CITY2_ZIP)
         {
-            printf("server sent: %s\n", buffer);
             ++count2;
         }
         if(count1 >=10 && count2 >= 10)
@@ -61,23 +61,19 @@ void client1(void *ctx)
     int rc = zmq_connect (sub, ZMQ_PUB_ENDPOINT);
     assert (rc == 0);
 
-    const char *filter = "10001 ";
+    const char *filter = "10001";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
     assert(rc == 0);
 
     int count = 0;
     for (count = 0; count < 10; ++count)
     {
-        char buffer[20];
-        rc = zmq_recv(sub, buffer, 20, 0);
-        if (rc != -1)
-        {
-            printf("Client1 rcvd: %s (%d)\n", buffer, count);
-        }
-        else
-        {
-            printf("zmq_recv failed: %s\n", strerror(errno));
-        }
+        char buffer[32];
+        rc = zmq_recv(sub, buffer, 32, 0);
+        assert(rc);
+        rc = zmq_recv(sub, buffer + rc, 32 - rc , 0);
+        assert(rc);
+        printf("Client1 rcvd: %s (%d)\n", buffer, count);
     }
     printf("Close subscriber socket\n");
     zmq_close(sub);
@@ -89,23 +85,19 @@ void client2(void *ctx)
     int rc = zmq_connect (sub, ZMQ_PUB_ENDPOINT);
     assert (rc == 0);
 
-    const char *filter = "10002 ";
+    const char *filter = "10002";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
     assert(rc == 0);
 
     int count = 0;
     for (count = 0; count < 10; ++count)
     {
-        char buffer[20];
-        rc = zmq_recv(sub, buffer, 20, 0);
-        if (rc != -1)
-        {
-            printf("Client2 rcvd: %s (%d)\n", buffer, count);
-        }
-        else
-        {
-            printf("zmq_recv failed: %s\n", strerror(errno));
-        }
+        char buffer[32];
+        rc = zmq_recv(sub, buffer, 32, 0);
+        assert(rc);
+        rc = zmq_recv(sub, buffer + rc, 32 - rc , 0);
+        assert(rc);
+        printf("Client2 rcvd: %s (%d)\n", buffer, count);
     }
     printf("Close subscriber socket\n");
     zmq_close(sub);

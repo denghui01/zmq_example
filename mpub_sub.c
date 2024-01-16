@@ -14,75 +14,61 @@
 * In this scenario there are multiple server, so we have to connect server to
 * the endpoint and client will bind to it.
 */
-#define WEATHER1_URL  ("inproc://weather1")
+#define ZMQ_PUB_ENDPOINT  ("inproc://weather")
 
 void server1(void *ctx)
 {
     char buffer [20];
-    int count1 = 0;
+    int count = 0;
     void *pub = zmq_socket (ctx, ZMQ_PUB);
-    int rc = zmq_connect (pub, WEATHER1_URL);
+    int rc = zmq_connect (pub, ZMQ_PUB_ENDPOINT);
     assert (rc == 0);
 
     srand((unsigned) time (NULL));
     while (1) {
 
         int zipcode, temperature, humidity;
-        zipcode = rand() % 1000 + 1000;
+        zipcode = rand() % 10000 + 10000;
         temperature = rand() % 215 - 80;
         humidity = rand() % 50 + 10;
 
-        sprintf(buffer,  "%04d %d %d", zipcode, temperature, humidity);
-        rc = zmq_send(pub, buffer, strlen(buffer) + 1, 0);
-        if( rc == -1 )
+        sprintf(buffer,  "%05d ", zipcode);
+        rc = zmq_send(pub, buffer, strlen(buffer), ZMQ_SNDMORE);
+        sprintf(buffer,  "%d %d", temperature, humidity);
+        zmq_send(pub, buffer, strlen(buffer) + 1, 0);
+        if(zipcode == 10001 && ++count >= 10)
         {
-            printf("zmq_send failed: %s\n", strerror(errno));
+            break;
         }
-        if(zipcode == 1001)
-        {
-            printf("server1 send %s\n", buffer);
-            if(++count1 >= 10)
-            {
-                break;
-            }
-        }
-        usleep(1);
     }
-    printf("Close publisher2 socket\n");
+    printf("Close publisher1 socket\n");
     zmq_close(pub);
 }
 
 void server2(void *ctx)
 {
     char buffer [20];
-    int count2 = 0;
+    int count = 0;
     void *pub = zmq_socket (ctx, ZMQ_PUB);
-    int rc = zmq_connect (pub, WEATHER1_URL);
+    int rc = zmq_connect (pub, ZMQ_PUB_ENDPOINT);
     assert (rc == 0);
 
     srand((unsigned) time (NULL));
     while (1) {
 
         int zipcode, temperature, humidity;
-        zipcode = rand() % 1000 + 2000;
+        zipcode = rand() % 10000 + 20000;
         temperature = rand() % 215 - 80;
         humidity = rand() % 50 + 10;
 
-        sprintf(buffer,  "%04d %d %d", zipcode, temperature, humidity);
-        rc = zmq_send (pub, buffer, strlen(buffer) + 1, 0);
-        if( rc == -1 )
+        sprintf(buffer,  "%05d ", zipcode);
+        rc = zmq_send(pub, buffer, strlen(buffer), ZMQ_SNDMORE);
+        sprintf(buffer,  "%d %d", temperature, humidity);
+        zmq_send(pub, buffer, strlen(buffer) + 1, 0);
+        if(zipcode == 20001 && ++count >= 10)
         {
-            printf("zmq_send failed: %s\n", strerror(errno));
+            break;
         }
-        if(zipcode == 2001)
-        {
-            printf("server2 send %s\n", buffer);
-            if(++count2 >= 10)
-            {
-                break;
-            }
-        }
-        usleep(1);
     }
     printf("Close publisher2 socket\n");
     zmq_close(pub);
@@ -91,30 +77,26 @@ void server2(void *ctx)
 void client1(void *ctx)
 {
     void *sub = zmq_socket (ctx, ZMQ_SUB);
-    int rc = zmq_bind (sub, WEATHER1_URL);
+    int rc = zmq_bind (sub, ZMQ_PUB_ENDPOINT);
     assert (rc == 0);
 
-    const char *filter = "1001 ";
+    const char *filter = "10001";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
+    assert(rc == 0);
 
-    filter = "2001 ";
+    filter = "20001";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
-
     assert(rc == 0);
 
     int count = 0;
     for (count = 0; count < 20; ++count)
     {
-        char buffer[20];
-        rc = zmq_recv(sub, buffer, 20, 0);
-        if (rc != -1)
-        {
-            printf("Client 1 recieved weather: %s\n", buffer);
-        }
-        else
-        {
-            printf("zmq_recv failed: %s\n", strerror(errno));
-        }
+        char buffer[32];
+        rc = zmq_recv(sub, buffer, 32, 0);
+        assert(rc);
+        rc = zmq_recv(sub, buffer + rc, 32 - rc , 0);
+        assert(rc);
+        printf("Client rcvd: %s (%d)\n", buffer, count);
     }
     printf("Close client1 socket\n");
     zmq_close(sub);

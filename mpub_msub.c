@@ -29,33 +29,28 @@ void server1(void *ctx)
     while (1) {
 
         int zipcode, temperature, humidity;
-        zipcode = rand() % 1000 + 1000;
+        zipcode = rand() % 10000 + 10000;
         temperature = rand() % 215 - 80;
         humidity = rand() % 50 + 10;
 
-        sprintf(buffer,  "%04d %d %d", zipcode, temperature, humidity);
-        rc = zmq_send(pub, buffer, strlen(buffer) + 1, 0);
-        if( rc == -1 )
+        sprintf(buffer,  "%05d ", zipcode);
+        rc = zmq_send(pub, buffer, strlen(buffer), ZMQ_SNDMORE);
+        sprintf(buffer,  "%d %d", temperature, humidity);
+        zmq_send(pub, buffer, strlen(buffer) + 1, 0);
+        if(zipcode == 10001)
         {
-            printf("zmq_send failed: %s\n", strerror(errno));
-        }
-        if(zipcode == 1001)
-        {
-            //printf("server1 sent: %s\n", buffer);
             ++count1;
         }
-        if(zipcode == 1002)
+        if(zipcode == 10002)
         {
-            //printf("server1 sent: %s\n", buffer);
             ++count2;
         }
         if(count1 >=10 && count2 >= 10)
         {
             break;
         }
-        usleep(1);
     }
-    printf("Close publisher2 socket\n");
+    printf("Close publisher1 socket\n");
     zmq_close(pub);
 }
 
@@ -72,31 +67,26 @@ void server2(void *ctx)
     while (1) {
 
         int zipcode, temperature, humidity;
-        zipcode = rand() % 1000 + 2000;
+        zipcode = rand() % 10000 + 20000;
         temperature = rand() % 215 - 80;
         humidity = rand() % 50 + 10;
 
-        sprintf(buffer,  "%04d %d %d", zipcode, temperature, humidity);
-        rc = zmq_send (pub, buffer, strlen(buffer) + 1, 0);
-        if( rc == -1 )
+        sprintf(buffer,  "%05d ", zipcode);
+        rc = zmq_send(pub, buffer, strlen(buffer), ZMQ_SNDMORE);
+        sprintf(buffer,  "%d %d", temperature, humidity);
+        zmq_send(pub, buffer, strlen(buffer) + 1, 0);
+        if(zipcode == 20001)
         {
-            printf("zmq_send failed: %s\n", strerror(errno));
-        }
-        if(zipcode == 2001)
-        {
-            //printf("server2 sent: %s\n", buffer);
             ++count1;
         }
-        if(zipcode == 2002)
+        if(zipcode == 20002)
         {
-            //printf("server2 sent: %s\n", buffer);
             ++count2;
         }
         if(count1 >=10 && count2 >= 10)
         {
             break;
         }
-        usleep(1);
     }
     printf("Close publisher2 socket\n");
     zmq_close(pub);
@@ -110,29 +100,25 @@ void client1(void *ctx)
 
     rc = zmq_connect(sub, WEATHER1_URL);
     assert (rc == 0);
-    filter = "1001 ";
+    filter = "10001";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
     assert(rc == 0);
 
     rc = zmq_connect(sub, WEATHER2_URL);
     assert (rc == 0);
-    filter = "2001 ";
+    filter = "20001";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
     assert(rc == 0);
 
     int count = 0;
     for (count = 0; count < 20; ++count)
     {
-        char buffer[20];
-        rc = zmq_recv(sub, buffer, 20, 0);
-        if (rc != -1)
-        {
-            printf("Client1 recieved weather: %s\n", buffer);
-        }
-        else
-        {
-            printf("zmq_recv failed: %s\n", strerror(errno));
-        }
+        char buffer[32];
+        rc = zmq_recv(sub, buffer, 32, 0);
+        assert(rc);
+        rc = zmq_recv(sub, buffer + rc, 32 - rc , 0);
+        assert(rc);
+        printf("Client rcvd: %s (%d)\n", buffer, count);
     }
     printf("Close client1 socket\n");
     zmq_close(sub);
@@ -146,29 +132,25 @@ void client2(void *ctx)
 
     rc = zmq_connect(sub, WEATHER1_URL);
     assert (rc == 0);
-    filter = "1002 ";
+    filter = "10002";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
     assert(rc == 0);
 
     rc = zmq_connect(sub, WEATHER2_URL);
     assert (rc == 0);
-    filter = "2002 ";
+    filter = "20002";
     rc = zmq_setsockopt( sub, ZMQ_SUBSCRIBE, filter, strlen(filter));
     assert(rc == 0);
 
     int count = 0;
     for (count = 0; count < 20; ++count)
     {
-        char buffer[20];
-        rc = zmq_recv(sub, buffer, 20, 0);
-        if (rc != -1)
-        {
-            printf("Client2 recieved weather: %s\n", buffer);
-        }
-        else
-        {
-            printf("zmq_recv failed: %s\n", strerror(errno));
-        }
+        char buffer[32];
+        rc = zmq_recv(sub, buffer, 32, 0);
+        assert(rc);
+        rc = zmq_recv(sub, buffer + rc, 32 - rc , 0);
+        assert(rc);
+        printf("Client rcvd: %s (%d)\n", buffer, count);
     }
     printf("Close client2 socket\n");
     zmq_close(sub);
