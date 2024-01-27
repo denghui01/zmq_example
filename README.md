@@ -5,6 +5,10 @@ To build an example
 
 g++ -g -o bin/pub_sub pub_sub.c -lzmq -lpthread
 
+To use czmq
+
+g++ -g -o bin/beacon beacon.c -lczmq -lpthread
+
 Some may need
 
 g++ -g -std=c++1z ...
